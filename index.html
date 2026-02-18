@@ -2,6 +2,8 @@
   const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/4zovlmjo1i3gtax2a11y6800p5ohxnbe";
   const SHARED_SECRET = "";
 
+  console.log("✅ Script chargé. Webhook =", MAKE_WEBHOOK_URL);
+
   function normalizePhone(raw) {
     let s = (raw || "").trim();
     s = s.replace(/[^\d+]/g, "");
@@ -19,7 +21,13 @@
     el.style.display = "block";
   }
 
-  document.getElementById("smsForm").addEventListener("submit", async (e) => {
+  const form = document.getElementById("smsForm");
+  if (!form) {
+    alert("❌ Formulaire #smsForm introuvable (ID incorrect).");
+    throw new Error("Form #smsForm not found");
+  }
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const phoneInput = document.getElementById("phone");
@@ -27,9 +35,10 @@
     const result = document.getElementById("result");
 
     const phone = normalizePhone(phoneInput.value);
+    console.log("➡️ Submit détecté. phone_raw =", phoneInput.value, "=> phone =", phone);
 
     if (!phone.startsWith("+") || phone.length < 10) {
-      showMessage(result, "Numéro invalide. Essaie un format comme +41 79 123 45 67.", false);
+      showMessage(result, "Numéro invalide. Exemple: +41 79 123 45 67", false);
       return;
     }
 
@@ -45,23 +54,27 @@
         secret: SHARED_SECRET || undefined
       };
 
+      console.log("📦 Payload envoyé:", payload);
+
       const res = await fetch(MAKE_WEBHOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Webhook erreur ${res.status}. ${text}`);
-      }
+      console.log("🌐 Réponse HTTP:", res.status);
+
+      const text = await res.text().catch(() => "");
+      console.log("📨 Body réponse:", text);
+
+      if (!res.ok) throw new Error(`Webhook erreur ${res.status}. ${text}`);
 
       showMessage(result, `✅ Envoyé à ${phone}.`, true);
       phoneInput.value = "";
       phoneInput.focus();
     } catch (err) {
-      showMessage(result, "❌ Échec d’envoi. Ouvre la console (F12) pour voir l’erreur exacte.", false);
-      console.error(err);
+      console.error("❌ Erreur:", err);
+      showMessage(result, "❌ Échec. Regarde la console (F12) pour le message exact (souvent CORS).", false);
     } finally {
       sendBtn.disabled = false;
     }
