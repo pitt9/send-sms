@@ -1,82 +1,111 @@
-<script>
-  const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/4zovlmjo1i3gtax2a11y6800p5ohxnbe";
-  const SHARED_SECRET = "";
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SMS – Création de compte</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    .card { max-width: 520px; padding: 18px; border: 1px solid #e5e5e5; border-radius: 12px; }
+    label { display:block; margin-bottom:8px; font-weight:700; }
+    input { width:100%; padding:12px; font-size:16px; border:1px solid #ddd; border-radius:10px; }
+    button { margin-top:12px; padding:12px 14px; font-size:16px; border:0; border-radius:10px; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .msg { margin-top:12px; padding:10px; border-radius:10px; display:none; }
+    .ok { background:#ecfdf3; border:1px solid #a7f3d0; color:#065f46; }
+    .err { background:#fef2f2; border:1px solid #fecaca; color:#7f1d1d; }
+    .tiny { font-size:12px; color:#666; margin-top:6px; }
+  </style>
+</head>
 
-  console.log("✅ Script chargé. Webhook =", MAKE_WEBHOOK_URL);
+<body>
+  <div class="card">
+    <h2 style="margin:0 0 12px;">📩 Envoyer le SMS “Créer un compte”</h2>
 
-  function normalizePhone(raw) {
-    let s = (raw || "").trim();
-    s = s.replace(/[^\d+]/g, "");
+    <form id="smsForm">
+      <label for="phone">Numéro de téléphone</label>
+      <input
+        id="phone"
+        name="phone"
+        type="tel"
+        inputmode="tel"
+        autocomplete="tel"
+        placeholder="Ex: 079 123 45 67 ou +41 79 123 45 67"
+        required
+      />
+      <div class="tiny">Le numéro est normalisé en +41… automatiquement.</div>
 
-    if (s.startsWith("0041")) s = "+41" + s.slice(4);
-    if (s.startsWith("0") && s.length >= 9) s = "+41" + s.slice(1);
-    if (s.startsWith("41") && !s.startsWith("+41")) s = "+" + s;
+      <button id="sendBtn" type="submit">Envoyer</button>
+      <div id="result" class="msg"></div>
+    </form>
+  </div>
 
-    return s;
-  }
+  <script>
+    const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/4zovlmjo1i3gtax2a11y6800p5ohxnbe";
+    const SHARED_SECRET = ""; // optionnel
 
-  function showMessage(el, text, ok) {
-    el.textContent = text;
-    el.className = "msg " + (ok ? "ok" : "err");
-    el.style.display = "block";
-  }
-
-  const form = document.getElementById("smsForm");
-  if (!form) {
-    alert("❌ Formulaire #smsForm introuvable (ID incorrect).");
-    throw new Error("Form #smsForm not found");
-  }
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const phoneInput = document.getElementById("phone");
-    const sendBtn = document.getElementById("sendBtn");
-    const result = document.getElementById("result");
-
-    const phone = normalizePhone(phoneInput.value);
-    console.log("➡️ Submit détecté. phone_raw =", phoneInput.value, "=> phone =", phone);
-
-    if (!phone.startsWith("+") || phone.length < 10) {
-      showMessage(result, "Numéro invalide. Exemple: +41 79 123 45 67", false);
-      return;
+    function normalizePhone(raw) {
+      let s = (raw || "").trim();
+      s = s.replace(/[^\d+]/g, "");
+      if (s.startsWith("0041")) s = "+41" + s.slice(4);
+      if (s.startsWith("0") && s.length >= 9) s = "+41" + s.slice(1);
+      if (s.startsWith("41") && !s.startsWith("+41")) s = "+" + s;
+      return s;
     }
 
-    sendBtn.disabled = true;
-    result.style.display = "none";
-
-    try {
-      const payload = {
-        phone,
-        phone_raw: phoneInput.value,
-        source: "secretariat_form",
-        ts: new Date().toISOString(),
-        secret: SHARED_SECRET || undefined
-      };
-
-      console.log("📦 Payload envoyé:", payload);
-
-      const res = await fetch(MAKE_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      console.log("🌐 Réponse HTTP:", res.status);
-
-      const text = await res.text().catch(() => "");
-      console.log("📨 Body réponse:", text);
-
-      if (!res.ok) throw new Error(`Webhook erreur ${res.status}. ${text}`);
-
-      showMessage(result, `✅ Envoyé à ${phone}.`, true);
-      phoneInput.value = "";
-      phoneInput.focus();
-    } catch (err) {
-      console.error("❌ Erreur:", err);
-      showMessage(result, "❌ Échec. Regarde la console (F12) pour le message exact (souvent CORS).", false);
-    } finally {
-      sendBtn.disabled = false;
+    function showMessage(el, text, ok) {
+      el.textContent = text;
+      el.className = "msg " + (ok ? "ok" : "err");
+      el.style.display = "block";
     }
-  });
-</script>
+
+    document.getElementById("smsForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const phoneInput = document.getElementById("phone");
+      const sendBtn = document.getElementById("sendBtn");
+      const result = document.getElementById("result");
+
+      const phone = normalizePhone(phoneInput.value);
+
+      if (!phone.startsWith("+") || phone.length < 10) {
+        showMessage(result, "Numéro invalide. Exemple: +41 79 123 45 67", false);
+        return;
+      }
+
+      sendBtn.disabled = true;
+      result.style.display = "none";
+
+      try {
+        const payload = {
+          phone,
+          phone_raw: phoneInput.value,
+          source: "secretariat_form",
+          ts: new Date().toISOString(),
+          secret: SHARED_SECRET || undefined
+        };
+
+        const res = await fetch(MAKE_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        // lire la réponse (utile pour debug)
+        const text = await res.text().catch(() => "");
+
+        if (!res.ok) throw new Error(`Webhook erreur ${res.status}. ${text}`);
+
+        showMessage(result, `✅ Envoyé à ${phone}.`, true);
+        phoneInput.value = "";
+        phoneInput.focus();
+      } catch (err) {
+        console.error(err);
+        showMessage(result, "❌ Échec. Ouvre la console (F12) → onglet Console/Network pour voir l’erreur (souvent CORS).", false);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
