@@ -1,135 +1,69 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Envoi SMS - Création de compte</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    .card { max-width: 520px; padding: 18px; border: 1px solid #e5e5e5; border-radius: 12px; }
-    label { display: block; margin-bottom: 8px; font-weight: 600; }
-    input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 10px; }
-    button { margin-top: 12px; padding: 12px 14px; font-size: 16px; border: 0; border-radius: 10px; cursor: pointer; }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    .row { display: flex; gap: 10px; align-items: center; }
-    .row button { flex: 0 0 auto; }
-    .hint { margin-top: 10px; font-size: 13px; color: #555; }
-    .msg { margin-top: 12px; padding: 10px; border-radius: 10px; display: none; }
-    .ok { background: #ecfdf3; border: 1px solid #a7f3d0; color: #065f46; }
-    .err { background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; }
-    .tiny { font-size: 12px; color: #666; margin-top: 6px;}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h2 style="margin: 0 0 12px;">📩 Envoi SMS création de compte</h2>
+<script>
+  const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/4zovlmjo1i3gtax2a11y6800p5ohxnbe";
+  const SHARED_SECRET = "";
 
-    <form id="smsForm">
-      <label for="phone">Numéro de téléphone</label>
-      <input
-        id="phone"
-        name="phone"
-        type="tel"
-        inputmode="tel"
-        autocomplete="tel"
-        placeholder="Ex: 079 123 45 67 ou +41 79 123 45 67"
-        required
-      />
-      <div class="tiny">Astuce: tu peux coller n’importe quel format, il sera normalisé en +41… si besoin.</div>
+  function normalizePhone(raw) {
+    let s = (raw || "").trim();
+    s = s.replace(/[^\d+]/g, "");
 
-      <button id="sendBtn" type="submit">Envoyer le SMS</button>
-      <div id="result" class="msg"></div>
+    if (s.startsWith("0041")) s = "+41" + s.slice(4);
+    if (s.startsWith("0") && s.length >= 9) s = "+41" + s.slice(1);
+    if (s.startsWith("41") && !s.startsWith("+41")) s = "+" + s;
 
-      <div class="hint">
-        🔒 Optionnel: protège cette page avec un mot de passe côté serveur si tu la mets en ligne.
-      </div>
-    </form>
-  </div>
+    return s;
+  }
 
-  <script>
-    // 1) Mets ici ton webhook Make
-    const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/4zovlmjo1i3gtax2a11y6800p5ohxnbe"; // <-- à remplacer
+  function showMessage(el, text, ok) {
+    el.textContent = text;
+    el.className = "msg " + (ok ? "ok" : "err");
+    el.style.display = "block";
+  }
 
-    // 2) Optionnel: un "secret" simple que Make vérifiera (tu peux le laisser vide)
-    const SHARED_SECRET = ""; // ex: "elpittet-2026"
+  document.getElementById("smsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-    function normalizePhone(raw) {
-      let s = (raw || "").trim();
-      // garde + et chiffres uniquement
-      s = s.replace(/[^\d+]/g, "");
+    const phoneInput = document.getElementById("phone");
+    const sendBtn = document.getElementById("sendBtn");
+    const result = document.getElementById("result");
 
-      // cas fréquents CH: 079... -> +4179...
-      if (s.startsWith("0") && s.length >= 9) {
-        s = "+41" + s.slice(1);
-      }
+    const phone = normalizePhone(phoneInput.value);
 
-      // si commence par 41 sans + -> +41
-      if (s.startsWith("41") && !s.startsWith("+41")) {
-        s = "+".concat(s);
-      }
-
-      // si commence par 0041 -> +41
-      if (s.startsWith("0041")) {
-        s = "+41" + s.slice(4);
-      }
-
-      return s;
+    if (!phone.startsWith("+") || phone.length < 10) {
+      showMessage(result, "Numéro invalide. Essaie un format comme +41 79 123 45 67.", false);
+      return;
     }
 
-    function showMessage(el, text, ok) {
-      el.textContent = text;
-      el.className = "msg " + (ok ? "ok" : "err");
-      el.style.display = "block";
+    sendBtn.disabled = true;
+    result.style.display = "none";
+
+    try {
+      const payload = {
+        phone,
+        phone_raw: phoneInput.value,
+        source: "secretariat_form",
+        ts: new Date().toISOString(),
+        secret: SHARED_SECRET || undefined
+      };
+
+      const res = await fetch(MAKE_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Webhook erreur ${res.status}. ${text}`);
+      }
+
+      showMessage(result, `✅ Envoyé à ${phone}.`, true);
+      phoneInput.value = "";
+      phoneInput.focus();
+    } catch (err) {
+      showMessage(result, "❌ Échec d’envoi. Ouvre la console (F12) pour voir l’erreur exacte.", false);
+      console.error(err);
+    } finally {
+      sendBtn.disabled = false;
     }
-
-    document.getElementById("smsForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const phoneInput = document.getElementById("phone");
-      const sendBtn = document.getElementById("sendBtn");
-      const result = document.getElementById("result");
-
-      const phone = normalizePhone(phoneInput.value);
-
-      // mini validation
-      if (!phone.startsWith("+") || phone.length < 10) {
-        showMessage(result, "Numéro invalide. Essaie un format comme +41 79 123 45 67.", false);
-        return;
-      }
-
-      sendBtn.disabled = true;
-      result.style.display = "none";
-
-      try {
-        const payload = {
-          phone,                // +41791234567
-          phone_raw: phoneInput.value,
-          source: "secretariat_form",
-          ts: new Date().toISOString(),
-          secret: SHARED_SECRET || undefined
-        };
-
-        const res = await fetch(https://https://hook.eu2.make.com/4zovlmjo1i3gtax2a11y6800p5ohxnbe, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`Webhook erreur ${res.status}. ${text}`);
-        }
-
-        showMessage(result, `✅ Envoyé à ${phone}.`, true);
-        phoneInput.value = "";
-        phoneInput.focus();
-      } catch (err) {
-        showMessage(result, "❌ Échec d’envoi. Vérifie l’URL du webhook Make et les autorisations CORS (voir notes).", false);
-        console.error(err);
-      } finally {
-        sendBtn.disabled = false;
-      }
-    });
-  </script>
-</body>
-</html>
+  });
+</script>
